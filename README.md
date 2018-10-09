@@ -52,6 +52,7 @@ You can query the all `GreenhouseJob` created by the plugin as follows:
         id
         title
         updated_at
+        absolute_url
       }
     }
   }
