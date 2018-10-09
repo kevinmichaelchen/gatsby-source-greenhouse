@@ -1,51 +1,14 @@
-const crypto = require('crypto');
 const axios = require('axios');
-import { JobPostNode, DepartmentNode } from './nodes';
-
-/**
- * Return all open jobs for a given department
- * @param apiToken string.
- * @param departmentId string.
- */
-async function getJobsForDepartment(apiToken, departmentId) {
-  return axios.get('https://harvest.greenhouse.io/v1/jobs', {
-    params: {
-      department_id: departmentId,
-      status: 'open',
-    },
-    auth: {
-      username: apiToken,
-      password: '',
-    },
-  });
-}
+const crypto = require('crypto');
 
 /**
  * Return all job posts
- * @param apiToken string.
- * @param queryParams object, defaults to only live job posts
+ * @param boardName string.
  */
-async function getJobPosts(apiToken, queryParams) {
-  return axios.get('https://harvest.greenhouse.io/v1/job_posts', {
-    params: queryParams,
-    auth: {
-      username: apiToken,
-      password: '',
-    },
-  });
-}
-
-/**
- * Gets all departments for a given organization
- * @param apiToken string.
- */
-async function getDepartments(apiToken) {
-  return axios.get('https://harvest.greenhouse.io/v1/departments', {
-    auth: {
-      username: apiToken,
-      password: '',
-    },
-  });
+async function getJobPosts(boardName) {
+  return axios.get(
+    `https://boards-api.greenhouse.io/v1/boards/${boardName}/jobs`
+  );
 }
 
 /**
@@ -60,79 +23,50 @@ const changeId = obj => {
   return updatedObj;
 };
 
-const defaultPluginOptions = {
-  jobPosts: {
-    live: true,
-  },
-};
-
 exports.sourceNodes = async (
-  { boundActionCreators },
-  { apiToken, pluginOptions }
+  { boundActionCreators, createNodeId },
+  { boardName, pluginOptions }
 ) => {
   const { createNode } = boundActionCreators;
-  const options = pluginOptions || defaultPluginOptions;
 
-  console.log(`Fetch Greenhouse data`);
+  const processJob = job => {
+    const nodeId = createNodeId(`hubspot-topic-${job.id}`);
+    const nodeContent = JSON.stringify(job);
+    const nodeContentDigest = crypto
+      .createHash('md5')
+      .update(nodeContent)
+      .digest('hex');
 
-  console.log(`Starting to fetch data from Greenhouse`);
+    return Object.assign({}, job, {
+      id: nodeId,
+      parent: null,
+      children: [],
+      internal: {
+        type: `GreenhouseJob`,
+        content: nodeContent,
+        contentDigest: nodeContentDigest,
+      },
+    });
+  };
 
-  let departments, jobPosts;
+  console.log(`Fetching Greenhouse data...`);
+
+  let jobPosts;
   try {
-    departments = await getDepartments(apiToken).then(
-      response => response.data
-    );
-    jobPosts = await getJobPosts(apiToken, options.jobPosts).then(
-      response => response.data
+    jobPosts = await getJobPosts(boardName).then(
+      response => response.data.jobs
     );
   } catch (e) {
     console.log(`Failed to fetch data from Greenhouse`);
     process.exit(1);
   }
 
-  console.log(`jobPosts fetched`, jobPosts.length);
-  console.log(`departments fetched`, departments.length);
+  console.log(`Fetched ${jobPosts.length} job posts...`);
+
   return Promise.all(
-    departments.map(async department => {
-      const convertedDepartment = changeId(department);
-
-      let jobs;
-      try {
-        const jobsForDepartmentResults = await getJobsForDepartment(
-          apiToken,
-          convertedDepartment.id
-        );
-        jobs = jobsForDepartmentResults.data.map(job => changeId(job));
-      } catch (e) {
-        console.log(`Failed to fetch jobs for department.`);
-        process.exit(1);
-      }
-
-      var jobPostsMapping = jobPosts.reduce((map, jobPost) => {
-        map[jobPost.job_id] = jobPost;
-        return map;
-      }, {});
-
-      var jobPostsForDepartment = jobs.reduce((arr, job) => {
-        const mappedJobPost = jobPostsMapping[job.id];
-        if (mappedJobPost) {
-          arr.push(mappedJobPost);
-        }
-        return arr;
-      }, []);
-
-      convertedDepartment.jobPosts = jobPostsForDepartment;
-      const departmentNode = DepartmentNode(changeId(convertedDepartment));
-
-      jobPostsForDepartment.forEach(jobPost => {
-        const convertedJobPost = changeId(jobPost);
-        const jobPostNode = JobPostNode(convertedJobPost, {
-          parent: departmentNode.id,
-        });
-        createNode(jobPostNode);
-      });
-
-      createNode(departmentNode);
+    jobPosts.map(async job => {
+      const convertedJob = changeId(job);
+      createNode(processJob(convertedJob));
     })
   );
 };
