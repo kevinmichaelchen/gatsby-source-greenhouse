@@ -1,6 +1,6 @@
-const crypto = require('crypto')
-const axios = require('axios')
-import { JobPostNode, DepartmentNode } from './nodes'
+const crypto = require('crypto');
+const axios = require('axios');
+import { JobPostNode, DepartmentNode } from './nodes';
 
 /**
  * Return all open jobs for a given department
@@ -11,13 +11,13 @@ async function getJobsForDepartment(apiToken, departmentId) {
   return axios.get('https://harvest.greenhouse.io/v1/jobs', {
     params: {
       department_id: departmentId,
-      status: 'open'
+      status: 'open',
     },
     auth: {
       username: apiToken,
       password: '',
     },
-  })
+  });
 }
 
 /**
@@ -32,7 +32,7 @@ async function getJobPosts(apiToken, queryParams) {
       username: apiToken,
       password: '',
     },
-  })
+  });
 }
 
 /**
@@ -44,8 +44,8 @@ async function getDepartments(apiToken) {
     auth: {
       username: apiToken,
       password: '',
-    }
-  })
+    },
+  });
 }
 
 /**
@@ -55,74 +55,84 @@ async function getDepartments(apiToken) {
  * @returns object.
  */
 const changeId = obj => {
-	const updatedObj = obj
-	updatedObj.id = updatedObj.id.toString()
-	return updatedObj
-}
+  const updatedObj = obj;
+  updatedObj.id = updatedObj.id.toString();
+  return updatedObj;
+};
 
 const defaultPluginOptions = {
   jobPosts: {
-    live: true
-  }
-}
+    live: true,
+  },
+};
 
-exports.sourceNodes = async ({ boundActionCreators }, { apiToken, pluginOptions }) => {
-	const { createNode } = boundActionCreators
-  const options = pluginOptions || defaultPluginOptions
+exports.sourceNodes = async (
+  { boundActionCreators },
+  { apiToken, pluginOptions }
+) => {
+  const { createNode } = boundActionCreators;
+  const options = pluginOptions || defaultPluginOptions;
 
-  console.log(`Fetch Greenhouse data`)
+  console.log(`Fetch Greenhouse data`);
 
-  console.log(`Starting to fetch data from Greenhouse`)
+  console.log(`Starting to fetch data from Greenhouse`);
 
-  let departments, jobPosts
+  let departments, jobPosts;
   try {
-    departments = await getDepartments(apiToken).then(response => response.data)
-    jobPosts = await getJobPosts(apiToken, options.jobPosts).then(response => response.data)
+    departments = await getDepartments(apiToken).then(
+      response => response.data
+    );
+    jobPosts = await getJobPosts(apiToken, options.jobPosts).then(
+      response => response.data
+    );
   } catch (e) {
-    console.log(`Failed to fetch data from Greenhouse`)
-    process.exit(1)
+    console.log(`Failed to fetch data from Greenhouse`);
+    process.exit(1);
   }
 
-  console.log(`jobPosts fetched`, jobPosts.length)
-  console.log(`departments fetched`, departments.length)
+  console.log(`jobPosts fetched`, jobPosts.length);
+  console.log(`departments fetched`, departments.length);
   return Promise.all(
     departments.map(async department => {
-      const convertedDepartment = changeId(department)
-      
-      let jobs
+      const convertedDepartment = changeId(department);
+
+      let jobs;
       try {
-        const jobsForDepartmentResults = await getJobsForDepartment(apiToken, convertedDepartment.id)
-        jobs = jobsForDepartmentResults.data.map(job => changeId(job))
+        const jobsForDepartmentResults = await getJobsForDepartment(
+          apiToken,
+          convertedDepartment.id
+        );
+        jobs = jobsForDepartmentResults.data.map(job => changeId(job));
       } catch (e) {
-        console.log(`Failed to fetch jobs for department.`)
-        process.exit(1)
+        console.log(`Failed to fetch jobs for department.`);
+        process.exit(1);
       }
 
-      var jobPostsMapping = jobPosts.reduce((map, jobPost) => { 
-        map[jobPost.job_id] = jobPost
-        return map
-      }, {})
+      var jobPostsMapping = jobPosts.reduce((map, jobPost) => {
+        map[jobPost.job_id] = jobPost;
+        return map;
+      }, {});
 
       var jobPostsForDepartment = jobs.reduce((arr, job) => {
-        const mappedJobPost = jobPostsMapping[job.id]
+        const mappedJobPost = jobPostsMapping[job.id];
         if (mappedJobPost) {
-          arr.push(mappedJobPost)
+          arr.push(mappedJobPost);
         }
-        return arr
-      }, [])
+        return arr;
+      }, []);
 
-      convertedDepartment.jobPosts =  jobPostsForDepartment
-      const departmentNode = DepartmentNode(changeId(convertedDepartment))
+      convertedDepartment.jobPosts = jobPostsForDepartment;
+      const departmentNode = DepartmentNode(changeId(convertedDepartment));
 
       jobPostsForDepartment.forEach(jobPost => {
-        const convertedJobPost = changeId(jobPost)
-        const jobPostNode = JobPostNode(convertedJobPost, { 
-          parent: departmentNode.id 
-        })
-        createNode(jobPostNode)
-      })
-      
-      createNode(departmentNode)
+        const convertedJobPost = changeId(jobPost);
+        const jobPostNode = JobPostNode(convertedJobPost, {
+          parent: departmentNode.id,
+        });
+        createNode(jobPostNode);
+      });
+
+      createNode(departmentNode);
     })
-  )
-}
+  );
+};
