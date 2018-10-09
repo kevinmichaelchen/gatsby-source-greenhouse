@@ -1,6 +1,6 @@
 {
   "name": "@kevinmichaelchen/gatsby-source-greenhouse",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Gatsby source plugin for loading job posts from greenhouse.io",
   "main": "gatsby-node.js",
   "scripts": {
