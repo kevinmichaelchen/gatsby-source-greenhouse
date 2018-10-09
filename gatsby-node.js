@@ -42,7 +42,7 @@ exports.sourceNodes = async (
       parent: null,
       children: [],
       internal: {
-        type: `GreenhouseJob`,
+        type: `GreenhouseJobPost`,
         content: nodeContent,
         contentDigest: nodeContentDigest,
       },

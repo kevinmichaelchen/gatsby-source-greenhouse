@@ -42,11 +42,11 @@ Next, edit `gatsby-config.js` to use the plugin:
 
 ## Querying
 
-You can query the all `GreenhouseJob` created by the plugin as follows:
+You can query all `GreenhouseJobPost`s created by the plugin as follows:
 
 ```graphql
 {
-  allGreenhouseJob {
+  allGreenhouseJobPost {
     edges {
       node {
         id
